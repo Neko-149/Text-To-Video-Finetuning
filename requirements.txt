@@ -1,11 +1,11 @@
 accelerate==0.19
-torch
-torchvision
-torchaudio
+#torch
+#torchvision
+#torchaudio
 git+https://github.com/huggingface/diffusers.git
 git+https://github.com/cloneofsimo/lora.git
 git+https://github.com/microsoft/LoRA
-transformers
+transformers==4.26.1
 einops
 decord
 tqdm

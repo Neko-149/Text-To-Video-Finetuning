@@ -4,6 +4,7 @@ import logging
 import inspect
 import math
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 import random
 import gc
 import copy
@@ -38,10 +39,11 @@ from diffusers.models.attention import BasicTransformerBlock
 from transformers import CLIPTextModel, CLIPTokenizer
 from transformers.models.clip.modeling_clip import CLIPEncoder
 from utils.dataset import VideoJsonDataset, SingleVideoDataset, \
-    ImageDataset, VideoFolderDataset, CachedDataset
+    ImageDataset, VideoFolderDataset, CachedDataset,get_prompt_ids
 from einops import rearrange, repeat
 from utils.lora_handler import LoraHandler, LORA_VERSIONS
-
+import imageio
+from dataloader.video_loader import WebvidDataset,HDVGDataset
 already_printed_trainables = False
 
 logger = get_logger(__name__, log_level="INFO")
@@ -105,6 +107,10 @@ def export_to_video(video_frames, output_video_path, fps):
         img = cv2.cvtColor(video_frames[i], cv2.COLOR_RGB2BGR)
         video_writer.write(img)
 
+def export_to_video_new(video_frames, output_path,fps): 
+    #video_frames: t,h,w,c
+    imageio.mimsave(output_path, video_frames,quality=10)
+    
 def create_output_folders(output_dir, config):
     now = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     out_dir = os.path.join(output_dir, f"train_{now}")
@@ -638,12 +644,45 @@ def main(
         train_dataset = torch.utils.data.ConcatDataset(train_datasets) 
 
     # DataLoaders creation:
+    # use Webvid dataset
+    
+    train_dataset=WebvidDataset(
+                part_size=1,
+                data_dir='/aishi-dataset/webvid',
+                csv_file='data/results_10M_train_50',
+                width=512,
+                height=320,
+                n_sample_frames=8,
+                sample_frame_rate=2,
+                sample_fps=8,
+                use_frame_rate=True,
+                sample_start_idx=0,
+                accelerator=None,
+                debug=False)
+    """
+    train_dataset=HDVGDataset(
+                meta_count=100,
+                data_dir='/tos-bj-dataset/HDVG-130M/vg-clips',
+                meta_file='/nas/lijing/HDVG-130M/new_valid_meta/new_hdvg_long_23M.json',
+                use_new=True,
+                width=512,
+                height=320,
+                n_sample_frames=8,
+                sample_frame_rate=2,
+                sample_start_idx=0,
+                accelerator=None,
+                use_frame_rate=True,
+                sample_fps=8,
+    )
+    """
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset, 
         batch_size=train_batch_size,
+        num_workers=8,
         shuffle=shuffle
     )
 
+    
      # Latents caching
     cached_data_loader = handle_cache_latents(
         cache_latents, 
@@ -653,7 +692,7 @@ def main(
         vae,
         cached_latent_dir
     ) 
-
+    
     if cached_data_loader is not None: 
         train_dataloader = cached_data_loader
 
@@ -779,11 +818,18 @@ def main(
         if kwargs.get('eval_train', False):
             unet.eval()
             text_encoder.eval()
-            
+        
+        
+        #print("customize")
+        # customize for our dataset
+        if "prompt_ids" not in batch:
+            batch['prompt_ids']=get_prompt_ids(batch['sentence'], tokenizer)
+        #print(batch['prompt_ids'])
+        
         # Encode text embeddings
-        token_ids = batch['prompt_ids']
+        token_ids = batch['prompt_ids'].to(accelerator.device)
 
-        # Assume extra batch dimnesion.
+        # Assume extra batch dimension.
         if len(token_ids.shape) > 2:
             token_ids = token_ids[0]
             
@@ -837,7 +883,6 @@ def main(
 
     for epoch in range(first_epoch, num_train_epochs):
         train_loss = 0.0
-        
         for step, batch in enumerate(train_dataloader):
             # Skip steps until we reach the resumed step
             if resume_from_checkpoint and epoch == first_epoch and step < resume_step:
@@ -847,7 +892,7 @@ def main(
             
             with accelerator.accumulate(unet) ,accelerator.accumulate(text_encoder):
 
-                text_prompt = batch['text_prompt'][0]
+                #text_prompt = batch['text_prompt'][0]
                 
                 with accelerator.autocast():
                     loss, latents = finetune_unet(batch, train_encoder=train_text_encoder)
@@ -925,23 +970,27 @@ def main(
                             diffusion_scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
                             pipeline.scheduler = diffusion_scheduler
 
-                            prompt = text_prompt if len(validation_data.prompt) <= 0 else validation_data.prompt
+                            prompts = text_prompt if len(validation_data.prompt) <= 0 else validation_data.prompt
+                            #print(prompt)
 
-                            curr_dataset_name = batch['dataset']
-                            save_filename = f"{global_step}_dataset-{curr_dataset_name}_{prompt}"
-
-                            out_file = f"{output_dir}/samples/{save_filename}.mp4"
-                            
-                            with torch.no_grad():
-                                video_frames = pipeline(
-                                    prompt,
-                                    width=validation_data.width,
-                                    height=validation_data.height,
-                                    num_frames=validation_data.num_frames,
-                                    num_inference_steps=validation_data.num_inference_steps,
-                                    guidance_scale=validation_data.guidance_scale
-                                ).frames
-                            export_to_video(video_frames, out_file, train_data.get('fps', 8))
+                            os.makedirs(f"{output_dir}/samples/{global_step}",exist_ok=True)
+                            for index,prompt in enumerate(prompts):
+                                #print("current prompt is:",prompt)
+                                curr_dataset_name = "ourdataset"
+                                save_filename = f"dataset-{curr_dataset_name}_{prompt}"
+                                
+                                out_file = f"{output_dir}/samples/{global_step}/{save_filename}.mp4"
+                                
+                                with torch.no_grad():
+                                    video_frames = pipeline(
+                                        prompt,
+                                        width=validation_data.width,
+                                        height=validation_data.height,
+                                        num_frames=validation_data.num_frames,
+                                        num_inference_steps=validation_data.num_inference_steps,
+                                        guidance_scale=validation_data.guidance_scale
+                                    ).frames
+                                export_to_video_new(video_frames, out_file, train_data.get('fps', 8))
 
                             del pipeline
                             torch.cuda.empty_cache()
