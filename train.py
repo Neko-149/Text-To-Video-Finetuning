@@ -616,6 +616,7 @@ def main(
         num_training_steps=max_train_steps * gradient_accumulation_steps,
     )
 
+    """
     # Get the training dataset based on types (json, single_video, image)
     train_datasets = get_train_dataset(dataset_types, train_data, tokenizer)
 
@@ -641,7 +642,7 @@ def main(
     # Process many datasets
     else:
         train_dataset = torch.utils.data.ConcatDataset(train_datasets) 
-
+    """
     # DataLoaders creation:
     # use Webvid dataset
     """
