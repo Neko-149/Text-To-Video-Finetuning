@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/home/yuxueqing/Projects/videodiffusion')
+#sys.path.append('/home/yuxueqing/Projects/videodiffusion')
 import os
 from datetime import datetime
 import random
@@ -19,7 +19,7 @@ from einops import rearrange
 import json
 from tqdm import tqdm
 import numpy as np
-import libs.utils.transforms as data
+import utils.transforms as data
 import PIL
 import imageio
 import cv2 as cv

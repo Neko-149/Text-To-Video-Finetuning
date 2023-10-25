@@ -4,7 +4,6 @@ import logging
 import inspect
 import math
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 import random
 import gc
 import copy
@@ -395,7 +394,7 @@ def enforce_zero_terminal_snr(betas):
     return betas
 
 def should_sample(global_step, validation_steps, validation_data):
-    return (global_step % validation_steps == 0 or global_step == 1)  \
+    return (global_step % validation_steps == 0 or global_step == 10)  \
     and validation_data.sample_preview
 
 def save_pipe(
@@ -645,7 +644,7 @@ def main(
 
     # DataLoaders creation:
     # use Webvid dataset
-    
+    """
     train_dataset=WebvidDataset(
                 part_size=1,
                 data_dir='/aishi-dataset/webvid',
@@ -674,7 +673,7 @@ def main(
                 use_frame_rate=True,
                 sample_fps=8,
     )
-    """
+    
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset, 
         batch_size=train_batch_size,
@@ -935,21 +934,27 @@ def main(
                 train_loss = 0.0
             
                 if global_step % checkpointing_steps == 0:
-                    save_pipe(
-                        pretrained_model_path, 
-                        global_step, 
-                        accelerator, 
-                        unet, 
-                        text_encoder, 
-                        vae, 
-                        output_dir, 
-                        lora_manager,
-                        unet_lora_modules,
-                        text_encoder_lora_modules,
-                        is_checkpoint=True,
-                        save_pretrained_model=save_pretrained_model
-                    )
-
+                    if accelerator.is_main_process:
+                        save_path = os.path.join(output_dir, f"checkpoint-{global_step}")
+                        os.makedirs(save_path, exist_ok=True)
+                        accelerator.save_state(save_path)
+                        logger.info(f"Saved state to {save_path}")
+                        """
+                        save_pipe(
+                            pretrained_model_path, 
+                            global_step, 
+                            accelerator, 
+                            unet, 
+                            text_encoder, 
+                            vae, 
+                            output_dir, 
+                            lora_manager,
+                            unet_lora_modules,
+                            text_encoder_lora_modules,
+                            is_checkpoint=True,
+                            save_pretrained_model=save_pretrained_model
+                        )
+                        """
                 if should_sample(global_step, validation_steps, validation_data):
                     if global_step == 1: print("Performing validation prompt.")
                     if accelerator.is_main_process:
@@ -991,11 +996,12 @@ def main(
                                         guidance_scale=validation_data.guidance_scale
                                     ).frames
                                 export_to_video_new(video_frames, out_file, train_data.get('fps', 8))
-
+                                logger.info(f"Saved a new sample to {out_file}")
                             del pipeline
                             torch.cuda.empty_cache()
-
-                    logger.info(f"Saved a new sample to {out_file}")
+                    
+                    ####this may call conflict in multi-gpu!
+                    ####logger.info(f"Saved a new sample to {out_file}")
 
                     unet_and_text_g_c(
                         unet, 
@@ -1034,7 +1040,7 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="./configs/my_config.yaml")
+    parser.add_argument("--config", type=str, default="configs/my_config.yaml")
     args = parser.parse_args()
 
     main(**OmegaConf.load(args.config))
