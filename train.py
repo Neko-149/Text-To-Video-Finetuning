@@ -1001,7 +1001,7 @@ def main(
                             del pipeline
                             torch.cuda.empty_cache()
                     
-                    ####this may call conflict in multi-gpu!
+                    ####this cause conflict in multi-gpu!
                     ####logger.info(f"Saved a new sample to {out_file}")
 
                     unet_and_text_g_c(
