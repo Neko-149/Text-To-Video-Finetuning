@@ -8,6 +8,9 @@ import random
 import gc
 import copy
 
+import warnings
+warnings.filterwarnings("ignore")
+
 from typing import Dict, Optional, Tuple
 from omegaconf import OmegaConf
 
@@ -419,37 +422,39 @@ def save_pipe(
         save_path = output_dir
 
     # Save the dtypes so we can continue training at the same precision.
-    u_dtype, t_dtype, v_dtype = unet.dtype, text_encoder.dtype, vae.dtype 
+    #u_dtype, t_dtype, v_dtype = unet.dtype, text_encoder.dtype, vae.dtype 
 
    # Copy the model without creating a reference to it. This allows keeping the state of our lora training if enabled.
-    unet_save = copy.deepcopy(unet.cpu())
-    text_encoder_save = copy.deepcopy(text_encoder.cpu())
+    #unet_save = copy.deepcopy(unet.cpu())
+    #text_encoder_save = copy.deepcopy(text_encoder.cpu())
 
-    unet_out = copy.deepcopy(accelerator.unwrap_model(unet_save, keep_fp32_wrapper=False))
-    text_encoder_out = copy.deepcopy(accelerator.unwrap_model(text_encoder_save, keep_fp32_wrapper=False))
+    #unet_out = copy.deepcopy(accelerator.unwrap_model(unet_save, keep_fp32_wrapper=False))
+    #text_encoder_out = copy.deepcopy(accelerator.unwrap_model(text_encoder_save, keep_fp32_wrapper=False))
 
     pipeline = TextToVideoSDPipeline.from_pretrained(
         path,
-        unet=unet_out,
-        text_encoder=text_encoder_out,
+        unet=unet,
+        #unet=unet_out,
+        #text_encoder=text_encoder_out,
+        text_encoder=text_encoder,
         vae=vae,
     ).to(torch_dtype=torch.float32)
     
-    lora_manager.save_lora_weights(model=pipeline, save_path=save_path, step=global_step)
+    #lora_manager.save_lora_weights(model=pipeline, save_path=save_path, step=global_step)
 
     if save_pretrained_model:
         pipeline.save_pretrained(save_path)
 
-    if is_checkpoint:
-        unet, text_encoder = accelerator.prepare(unet, text_encoder)
-        models_to_cast_back = [(unet, u_dtype), (text_encoder, t_dtype), (vae, v_dtype)]
-        [x[0].to(accelerator.device, dtype=x[1]) for x in models_to_cast_back]
+    #if is_checkpoint:
+    #    unet, text_encoder = accelerator.prepare(unet, text_encoder)
+    #    models_to_cast_back = [(unet, u_dtype), (text_encoder, t_dtype), (vae, v_dtype)]
+    #    [x[0].to(accelerator.device, dtype=x[1]) for x in models_to_cast_back]
 
-    logger.info(f"Saved model at {save_path} on step {global_step}")
+    #logger.info(f"Saved model at {save_path} on step {global_step}")
     
     del pipeline
-    del unet_out
-    del text_encoder_out
+    #del unet_out
+    #del text_encoder_out
     torch.cuda.empty_cache()
     gc.collect()
 
@@ -935,27 +940,32 @@ def main(
                 train_loss = 0.0
             
                 if global_step % checkpointing_steps == 0:
+                    accelerator.wait_for_everyone()
+                    
+                    if accelerator.is_main_process:
+                        save_pipe(
+                                pretrained_model_path, 
+                                global_step, 
+                                accelerator, 
+                                unet, 
+                                text_encoder, 
+                                vae, 
+                                output_dir, 
+                                lora_manager,
+                                unet_lora_modules,
+                                text_encoder_lora_modules,
+                                is_checkpoint=True,
+                                save_pretrained_model=save_pretrained_model
+                            )
+                    """
                     if accelerator.is_main_process:
                         save_path = os.path.join(output_dir, f"checkpoint-{global_step}")
                         os.makedirs(save_path, exist_ok=True)
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
-                        """
-                        save_pipe(
-                            pretrained_model_path, 
-                            global_step, 
-                            accelerator, 
-                            unet, 
-                            text_encoder, 
-                            vae, 
-                            output_dir, 
-                            lora_manager,
-                            unet_lora_modules,
-                            text_encoder_lora_modules,
-                            is_checkpoint=True,
-                            save_pretrained_model=save_pretrained_model
-                        )
-                        """
+                    """
+                        
+                        
                 if should_sample(global_step, validation_steps, validation_data):
                     if global_step == 1: print("Performing validation prompt.")
                     if accelerator.is_main_process:

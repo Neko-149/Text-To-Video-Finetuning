@@ -72,7 +72,7 @@ lora_text_dropout: 0.1
 # This saves a LoRA that is compatible with the text2video webui extension.
 # It only works when the lora version is 'stable_lora'.
 # This is also a DIFFERENT implementation than Kohya's, so it will NOT work the same implementation.
-save_lora_for_webui: True
+save_lora_for_webui: False
 
 # The LoRA file will be converted to a different format to be compatible with the webui extension.
 # The difference between this and 'save_lora_for_webui' is that you can continue training a Diffusers pipeline model
