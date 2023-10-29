@@ -685,7 +685,12 @@ class WebvidDataset(Dataset):
     def __getitem__(self, index):
         # print("in getitem idx: %d begin" % index)
         begin_time = datetime.now()
+        find_count=0
         while True:
+            find_count+=1
+            if(find_count>10000):
+                print("#########Find data fail! Using a known valid index###############")
+                index=135961   # return a valid index
             # print("in getitem idx: %d begin get video" % index)
             index = index % len(self.metadata)
             sample = self.metadata[index]
@@ -694,11 +699,13 @@ class WebvidDataset(Dataset):
             # self.get_video_from_tos(video_path)
             # print("in getitem idx: %d got video from TOS" % index)
             if not os.path.isfile(video_path): # video 不存在
-                print("video_path not exist!!")
+                #if self.debug:
+                    #print("video_path not exist!!")
                 index += 1
                 continue
                 
             try:
+                #print("valid index:",index)
                 if self.load_raw_resolution:
                     video_reader = VideoReader(video_path, ctx=cpu(0))
                 elif self.load_resize_keep_ratio:

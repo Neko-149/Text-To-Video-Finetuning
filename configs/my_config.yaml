@@ -1,8 +1,8 @@
 # Pretrained diffusers model path.
-pretrained_model_path: "./models/model_scope_diffusers/" #https://huggingface.co/damo-vilab/text-to-video-ms-1.7b/tree/main
+pretrained_model_path: "/vepfs-bj-user/home/yuxueqing/Projects/Text-To-Video-Finetuning/models/model_scope_diffusers/" #https://huggingface.co/damo-vilab/text-to-video-ms-1.7b/tree/main
 
 # The folder where your training outputs will be placed.
-output_dir: "./outputs"
+output_dir: "/nas/yuxueqing/output"
 
 # You can train multiple datasets at once. They will be joined together for training.
 # Simply remove the line you don't need, or keep them all for mixed training.
@@ -124,7 +124,7 @@ train_data:
   frame_step: 1
 
   # The number of frames to sample. The higher this number, the higher the VRAM (acts similar to batch size).
-  n_sample_frames: 8
+  n_sample_frames: 16
   
   # 'single_video'
   single_video_path: "/home/yuxueqing/Projects/test_output/mix_data_test2/3_[''].mp4"
@@ -195,29 +195,29 @@ extra_text_encoder_params: null
   #adam_weight_decay: 0.2
 
 # How many batches to train. Not to be confused with video frames.
-train_batch_size: 3
+train_batch_size: 6
 
 # Maximum number of train steps. Model is saved after training.
-max_train_steps: 10000
+max_train_steps: 300000
 
 # Saves a model every nth step.
-checkpointing_steps: 1000
+checkpointing_steps: 500
 
 # How many steps to do for validation if sample_preview is enabled.
-validation_steps: 100
+validation_steps: 250
 
 # Which modules we want to unfreeze for the UNET. Advanced usage.
 trainable_modules:
-  - "all"
+  #- "all"
   # If you want to ignore temporal attention entirely, remove "attn1-2" and replace with ".attentions"
   # This is for self attetion. Activates for spatial and temporal dimensions if n_sample_frames > 1
-  #- "attn1"
+  - "attn1"
   
   # This is for cross attention (image & text data). Activates for spatial and temporal dimensions if n_sample_frames > 1
-  #- "attn2"
+  - "attn2"
   
   #  Convolution networks that hold temporal information. Activates for spatial and temporal dimensions if n_sample_frames > 1
-  #- 'temp_conv'
+  - "temp_conv"
 
 
 # Which modules we want to unfreeze for the Text Encoder. Advanced usage.
@@ -225,7 +225,7 @@ trainable_text_modules:
   - "all"
 
 # Seed for validation.
-seed: 64
+seed: 149
 
 # Whether or not we want to use mixed precision with accelerate
 mixed_precision: "fp16"

@@ -3,7 +3,8 @@ set -x
 #pathvar="$( cd "$( dirname $0 )" && pwd )"
 #cd $pathvar/../..
 #export PYTHONPATH=PYTHONPATH:$pathvar/../..
-
+#export NCCL_DEBUG=INFO
+export TORCH_DISTRIBUTED_DEBUG=INFO
 #pip install accelerate==0.19
 #pip install transformers==4.26.1
 #pip install diffusers==0.21.0
@@ -19,7 +20,7 @@ set -x
 #   --config="/nas/yxq/project/Text-To-Video-Finetuning-main/configs/my_config.yaml"
 
 accelerate launch \
-    --multi_gpu --num_machines 1 --num_processes=4  --gpu_ids '3,4,5,6' \
+    --multi_gpu --num_machines 1 --num_processes=8  --gpu_ids '0,1,2,3,4,5,6,7' \
     train.py \
     --config="configs/my_config.yaml"
 

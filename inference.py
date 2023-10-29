@@ -39,7 +39,7 @@ from torch import Tensor
 from torch.nn.functional import interpolate
 from tqdm import trange
 
-from train import export_to_video, handle_memory_attention, load_primary_models
+from train import export_to_video_new, handle_memory_attention, load_primary_models
 from utils.lama import inpaint_watermark
 from utils.lora import inject_inferable_lora
 
@@ -362,7 +362,7 @@ if __name__ == "__main__":
     parser.add_argument("-lR", "--lora_rank", type=int, default=64, help="Size of the LoRA checkpoint's projection matrix (defaults to 64).")
     parser.add_argument("-rw", "--remove-watermark", action="store_true", help="Post-process the videos with LAMA to inpaint ModelScope's common watermarks.")
     parser.add_argument("-l", "--loop", action="store_true", help="Make the video loop (by rotating frame order during diffusion).")
-    parser.add_argument("-r", "--seed", type=int, default=None, help="Random seed to make generations reproducible.")
+    parser.add_argument("-r", "--seed", type=int, default=123, help="Random seed to make generations reproducible.")
     args = parser.parse_args()
     # fmt: on
 
@@ -412,6 +412,7 @@ if __name__ == "__main__":
         lora_path=args.lora_path,
         lora_rank=args.lora_rank,
         loop=args.loop,
+        seed=args.seed
     )
 
     # =========================================
@@ -432,4 +433,4 @@ if __name__ == "__main__":
 
         video = video.byte().cpu().numpy()
 
-        export_to_video(video, f"{out_name} {str(uuid4())[:8]}.mp4", args.fps)
+        export_to_video_new(video, f"{out_name} {str(uuid4())[:8]}.mp4", args.fps)

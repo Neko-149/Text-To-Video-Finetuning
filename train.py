@@ -397,7 +397,7 @@ def enforce_zero_terminal_snr(betas):
     return betas
 
 def should_sample(global_step, validation_steps, validation_data):
-    return (global_step % validation_steps == 0 or global_step == 10)  \
+    return (global_step % validation_steps == 0 or global_step == 1 or global_step == 50)  \
     and validation_data.sample_preview
 
 def save_pipe(
@@ -450,7 +450,7 @@ def save_pipe(
     #    models_to_cast_back = [(unet, u_dtype), (text_encoder, t_dtype), (vae, v_dtype)]
     #    [x[0].to(accelerator.device, dtype=x[1]) for x in models_to_cast_back]
 
-    #logger.info(f"Saved model at {save_path} on step {global_step}")
+    logger.info(f"Saved model at {save_path} on step {global_step}")
     
     del pipeline
     #del unet_out
@@ -650,23 +650,23 @@ def main(
     """
     # DataLoaders creation:
     # use Webvid dataset
-    """
+    
     train_dataset=WebvidDataset(
-                part_size=1,
+                part_size=50,
                 data_dir='/aishi-dataset/webvid',
                 csv_file='data/results_10M_train_50',
                 width=512,
                 height=320,
-                n_sample_frames=8,
+                n_sample_frames=16,
                 sample_frame_rate=2,
                 sample_fps=8,
                 use_frame_rate=True,
                 sample_start_idx=0,
                 accelerator=None,
-                debug=False)
+                debug=True)
     """
     train_dataset=HDVGDataset(
-                meta_count=100,
+                meta_count=1000,
                 data_dir='/tos-bj-dataset/HDVG-130M/vg-clips',
                 meta_file='/nas/lijing/HDVG-130M/new_valid_meta/new_hdvg_long_23M.json',
                 use_new=True,
@@ -679,7 +679,7 @@ def main(
                 use_frame_rate=True,
                 sample_fps=8,
     )
-    
+    """
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset, 
         batch_size=train_batch_size,
@@ -889,6 +889,7 @@ def main(
     for epoch in range(first_epoch, num_train_epochs):
         train_loss = 0.0
         for step, batch in enumerate(train_dataloader):
+            
             # Skip steps until we reach the resumed step
             if resume_from_checkpoint and epoch == first_epoch and step < resume_step:
                 if step % gradient_accumulation_steps == 0:
@@ -932,6 +933,7 @@ def main(
                     print(f"An error has occured during backpropogation! {e}") 
                     continue
 
+
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
                 progress_bar.update(1)
@@ -939,7 +941,7 @@ def main(
                 accelerator.log({"train_loss": train_loss}, step=global_step)
                 train_loss = 0.0
             
-                if global_step % checkpointing_steps == 0:
+                if global_step % checkpointing_steps == 0 or global_step==1:
                     accelerator.wait_for_everyone()
                     
                     if accelerator.is_main_process:
@@ -957,14 +959,17 @@ def main(
                                 is_checkpoint=True,
                                 save_pretrained_model=save_pretrained_model
                             )
+                    #######sync processes
+                    #torch.distributed.barrier()
+                    #accelerator.wait_for_everyone()
                     """
                     if accelerator.is_main_process:
                         save_path = os.path.join(output_dir, f"checkpoint-{global_step}")
                         os.makedirs(save_path, exist_ok=True)
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
-                    """
-                        
+                    
+                    """    
                         
                 if should_sample(global_step, validation_steps, validation_data):
                     if global_step == 1: print("Performing validation prompt.")
@@ -1011,8 +1016,9 @@ def main(
                             del pipeline
                             torch.cuda.empty_cache()
                     
-                    ####this cause conflict in multi-gpu!
-                    ####logger.info(f"Saved a new sample to {out_file}")
+                    #######sync processes
+                    #torch.distributed.barrier()
+                    #accelerator.wait_for_everyone()
 
                     unet_and_text_g_c(
                         unet, 
